@@ -31,3 +31,12 @@ rss_feeds = [
 all_articles = []
 for feed_url in rss_feeds:
     all_articles.extend(parse_rss_feed(feed_url))
+from tasks import process_news_task
+
+# Iterate through the list of RSS feeds and call parse_rss_feed for each
+for feed_url in rss_feeds:
+    articles = parse_rss_feed(feed_url)
+    
+    # Send articles to the Celery queue for further processing
+    for article_data in articles:
+        process_news_task.delay(article_data)
