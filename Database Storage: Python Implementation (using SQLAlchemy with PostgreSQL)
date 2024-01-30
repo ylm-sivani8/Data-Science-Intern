@@ -1,0 +1,31 @@
+from sqlalchemy import create_engine, Column, String, DateTime, Integer, ForeignKey
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import IntegrityError
+
+Base = declarative_base()
+
+class NewsArticle(Base):
+    __tablename__ = 'news_articles'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String, unique=True, nullable=False)
+    content = Column(String, nullable=False)
+    pub_date = Column(DateTime, nullable=False)
+    source_url = Column(String, nullable=False)
+
+engine = create_engine('postgresql://your_username:your_password@localhost/your_database_name')
+Base.metadata.create_all(engine)
+
+# Store articles in the database
+Session = sessionmaker(bind=engine)
+session = Session()
+
+for article_data in all_articles:
+    article = NewsArticle(**article_data)
+    try:
+        session.add(article)
+        session.commit()
+    except IntegrityError:
+        session.rollback()  # Ignore duplicates
+
+session.close()
