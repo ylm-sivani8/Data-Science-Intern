@@ -1,0 +1,45 @@
+import logging
+import requests
+
+# Configure logging
+logging.basicConfig(filename='news_collection.log', level=logging.INFO)
+
+def parse_rss_feed(feed_url):
+    try:
+        parsed_feed = feedparser.parse(feed_url)
+        articles = []
+
+        for entry in parsed_feed.entries:
+            # ... (same as before)
+
+        return articles
+
+    except Exception as e:
+        logging.error(f"Error parsing feed {feed_url}: {str(e)}")
+        return []
+
+def process_news_task(article_data):
+    try:
+        # ... (same as before)
+
+    except Exception as e:
+        logging.error(f"Error processing article {article_data['title']}: {str(e)}")
+
+# Handle network connectivity issues
+def check_internet_connection():
+    try:
+        requests.get('http://www.google.com', timeout=1)
+        return True
+    except requests.ConnectionError:
+        logging.error("No internet connection.")
+        return False
+
+# Check internet connection before parsing feeds
+if check_internet_connection():
+    for feed_url in rss_feeds:
+        articles = parse_rss_feed(feed_url)
+        
+        # Send articles to the Celery queue for further processing
+        for article_data in articles:
+            process_news_task.delay(article_data)
+
