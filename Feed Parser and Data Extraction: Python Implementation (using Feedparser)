@@ -1,0 +1,33 @@
+import feedparser
+
+def parse_rss_feed(feed_url):
+    parsed_feed = feedparser.parse(feed_url)
+    articles = []
+
+    for entry in parsed_feed.entries:
+        title = entry.title
+        content = entry.summary
+        pub_date = entry.published
+        source_url = entry.link
+
+        # Add your logic to handle duplicates based on title, content, or source URL
+
+        articles.append({
+            'title': title,
+            'content': content,
+            'pub_date': pub_date,
+            'source_url': source_url
+        })
+
+    return articles
+
+# Iterate through the list of RSS feeds and call parse_rss_feed for each
+rss_feeds = [
+    "http://rss.cnn.com/rss/cnn_topstories.rss",
+    "http://qz.com/feed",
+    # Add other feeds
+]
+
+all_articles = []
+for feed_url in rss_feeds:
+    all_articles.extend(parse_rss_feed(feed_url))
