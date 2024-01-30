@@ -1,0 +1,33 @@
+Install Celery:
+pip install celery
+
+Create a Celery configuration file (celery_config.py):
+from kombu import Exchange, Queue
+
+BROKER_URL = 'pyamqp://guest:guest@localhost//'
+CELERY_RESULT_BACKEND = 'db+postgresql://your_username:your_password@localhost/your_database_name'
+
+CELERY_QUEUES = (
+    Queue('news_processing', Exchange('news_processing'), routing_key='news_processing'),
+)
+
+CELERY_DEFAULT_QUEUE = 'news_processing'
+
+Create a Celery task (tasks.py):
+from celery import Celery
+from your_data_processing_module import process_news_article
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+@app.task
+def process_news_task(article_data):
+    process_news_article(article_data)
+
+Implement your news processing logic in a separate module (your_data_processing_module.py).
+
+Trigger Celery tasks in your main script:
+from tasks import process_news_task
+
+for article_data in all_articles:
+    process_news_task.delay(article_data)
