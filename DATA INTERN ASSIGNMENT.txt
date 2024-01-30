@@ -1,0 +1,547 @@
+Here's a high-level outline to guide you through the implementation steps for your news collection application:
+
+1. Feed Parser and Data Extraction:
+Python Implementation:
+python
+
+import feedparser
+
+def parse_rss_feed(feed_url):
+    parsed_feed = feedparser.parse(feed_url)
+    articles = []
+
+    for entry in parsed_feed.entries:
+        title = entry.title
+        content = entry.summary
+        pub_date = entry.published
+        source_url = entry.link
+
+        # Add your logic to handle duplicates based on title, content, or source URL
+
+        articles.append({
+            'title': title,
+            'content': content,
+            'pub_date': pub_date,
+            'source_url': source_url
+        })
+
+    return articles
+
+# Iterate through the list of RSS feeds and call parse_rss_feed for each
+rss_feeds = [
+    "http://rss.cnn.com/rss/cnn_topstories.rss",
+    "http://qz.com/feed",
+    # Add other feeds
+]
+
+all_articles = []
+for feed_url in rss_feeds:
+    all_articles.extend(parse_rss_feed(feed_url))
+2. Database Storage:
+Python Implementation (using SQLAlchemy with PostgreSQL):
+python
+
+from sqlalchemy import create_engine, Column, String, DateTime, Integer, ForeignKey
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import IntegrityError
+
+Base = declarative_base()
+
+class NewsArticle(Base):
+    __tablename__ = 'news_articles'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String, unique=True, nullable=False)
+    content = Column(String, nullable=False)
+    pub_date = Column(DateTime, nullable=False)
+    source_url = Column(String, nullable=False)
+
+engine = create_engine('postgresql://your_username:your_password@localhost/your_database_name')
+Base.metadata.create_all(engine)
+
+# Store articles in the database
+Session = sessionmaker(bind=engine)
+session = Session()
+
+for article_data in all_articles:
+    article = NewsArticle(**article_data)
+    try:
+        session.add(article)
+        session.commit()
+    except IntegrityError:
+        session.rollback()  # Ignore duplicates
+
+session.close()
+3. Task Queue and News Processing:
+Python Implementation (using Celery):
+Install Celery:
+
+bash
+
+pip install celery
+Create a Celery configuration file (celery_config.py):
+
+python
+
+from kombu import Exchange, Queue
+
+BROKER_URL = 'pyamqp://guest:guest@localhost//'
+CELERY_RESULT_BACKEND = 'db+postgresql://your_username:your_password@localhost/your_database_name'
+
+CELERY_QUEUES = (
+    Queue('news_processing', Exchange('news_processing'), routing_key='news_processing'),
+)
+
+CELERY_DEFAULT_QUEUE = 'news_processing'
+Create a Celery task (tasks.py):
+
+python
+
+from celery import Celery
+from your_data_processing_module import process_news_article
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+@app.task
+def process_news_task(article_data):
+    process_news_article(article_data)
+Implement your news processing logic in a separate module (your_data_processing_module.py).
+
+Trigger Celery tasks in your main script:
+
+python
+
+from tasks import process_news_task
+
+for article_data in all_articles:
+    process_news_task.delay(article_data)
+This structure should help you get started with building your news collection application. Adapt it as needed for your specific use case and requirements.
+
+○ Configure the parser script to send extracted articles to the queue upon arrival.
+○ Create a Celery worker that consumes articles from the queue and performs
+further processing:
+■ Category classification: Utilize NLTK or spaCy to classify each article into
+the provided categories.
+■ Update the database with the assigned category for each article.
+4. Logging and Error Handling:
+○ Implement proper logging throughout the application to track events and potential
+errors.
+○ Handle parsing errors and network connectivity issues gracefully.
+Deliverables:
+● Python code for the application
+● Documentation explaining the implemented logic and design choices.
+● The resulting data as sqldump, csv or json.
+This enhanced test task will comprehensively assess your abilities in:
+● Building and managing complex ETL pipelines.
+● Building other scheduling and distributed task management infrastructure
+● Working with data sources(RSS, APIs,etc)
+● Implementing existing machine learning models
+
+1. Feed Parser and Data Extraction (continued):
+Python Implementation (update the script):
+python
+Copy code
+from tasks import process_news_task
+
+# Iterate through the list of RSS feeds and call parse_rss_feed for each
+for feed_url in rss_feeds:
+    articles = parse_rss_feed(feed_url)
+    
+    # Send articles to the Celery queue for further processing
+    for article_data in articles:
+        process_news_task.delay(article_data)
+2. Celery Worker:
+Python Implementation (tasks.py - continued):
+python
+
+from celery import Celery
+from your_data_processing_module import process_news_article
+from nltk.classify import NaiveBayesClassifier  # Assuming NLTK is used for classification
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+@ app.task
+def process_news_task(article_data):
+    # Additional processing logic, e.g., category classification
+    category = classify_article(article_data['content'])
+    article_data['category'] = category
+
+    # Update the database with the assigned category
+    update_database_with_category(article_data)
+
+def classify_article(content):
+    # Implement your classification logic using NLTK or spaCy
+    # Return the assigned category for the article
+    pass
+
+def update_database_with_category(article_data):
+    # Implement logic to update the database with the assigned category for the article
+    pass
+3. Logging and Error Handling:
+Python Implementation (update the scripts):
+python
+
+import logging
+import requests
+
+# Configure logging
+logging.basicConfig(filename='news_collection.log', level=logging.INFO)
+
+def parse_rss_feed(feed_url):
+    try:
+        parsed_feed = feedparser.parse(feed_url)
+        articles = []
+
+        for entry in parsed_feed.entries:
+            # ... (same as before)
+
+        return articles
+
+    except Exception as e:
+        logging.error(f"Error parsing feed {feed_url}: {str(e)}")
+        return []
+
+def process_news_task(article_data):
+    try:
+        # ... (same as before)
+
+    except Exception as e:
+        logging.error(f"Error processing article {article_data['title']}: {str(e)}")
+
+# Handle network connectivity issues
+def check_internet_connection():
+    try:
+        requests.get('http://www.google.com', timeout=1)
+        return True
+    except requests.ConnectionError:
+        logging.error("No internet connection.")
+        return False
+
+# Check internet connection before parsing feeds
+if check_internet_connection():
+    for feed_url in rss_feeds:
+        articles = parse_rss_feed(feed_url)
+        
+        # Send articles to the Celery queue for further processing
+        for article_data in articles:
+            process_news_task.delay(article_data)
+
+Documentation:
+Create a README file that explains the overall design, how to set up and run the application, dependencies, and any other relevant details. Additionally, document the classification model and its accuracy, if applicable.
+
+Deliverables:
+Provide the Python code, documentation, and resulting data as requested.
+
+This extended implementation includes sending articles to the Celery queue, category classification, database update with categories, and enhanced logging/error handling. Adjustments may be needed based on specific NLTK/spaCy usage and your data processing module.
+
+This extended implementation includes sending articles to the Celery queue, category classification, database update with categories, and enhanced logging/error handling. Adjustments may be needed based on specific NLTK/spaCy usage and your data processing module.
+
+
+
+
+
+
+1. Feed Parser and Data Extraction:
+Script Update:
+python
+
+from tasks import process_news_task
+import logging
+import requests
+
+# Configure logging
+logging.basicConfig(filename='news_collection.log', level=logging.INFO)
+
+def parse_rss_feed(feed_url):
+    try:
+        parsed_feed = feedparser.parse(feed_url)
+        articles = []
+
+        for entry in parsed_feed.entries:
+            title = entry.title
+            content = entry.summary
+            pub_date = entry.published
+            source_url = entry.link
+
+            # Add your logic to handle duplicates based on title, content, or source URL
+
+            articles.append({
+                'title': title,
+                'content': content,
+                'pub_date': pub_date,
+                'source_url': source_url
+            })
+
+        return articles
+
+    except Exception as e:
+        logging.error(f"Error parsing feed {feed_url}: {str(e)}")
+        return []
+
+# Handle network connectivity issues
+def check_internet_connection():
+    try:
+        requests.get('http://www.google.com', timeout=1)
+        return True
+    except requests.ConnectionError:
+        logging.error("No internet connection.")
+        return False
+
+# Check internet connection before parsing feeds
+if check_internet_connection():
+    for feed_url in rss_feeds:
+        articles = parse_rss_feed(feed_url)
+        
+        # Send articles to the Celery queue for further processing
+        for article_data in articles:
+            process_news_task.delay(article_data)
+
+
+2. Celery Worker:
+tasks.py Update:
+python
+
+from celery import Celery
+from your_data_processing_module import process_news_article
+from nltk.classify import NaiveBayesClassifier  # Assuming NLTK is used for classification
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
+from models import NewsArticle  # Assuming you have a NewsArticle model
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+@ app.task
+def process_news_task(article_data):
+    try:
+        # Additional processing logic, e.g., category classification
+        category = classify_article(article_data['content'])
+        article_data['category'] = category
+
+        # Update the database with the assigned category
+        update_database_with_category(article_data)
+
+    except Exception as e:
+        logging.error(f"Error processing article {article_data['title']}: {str(e)}")
+
+def classify_article(content):
+    # Implement your classification logic using NLTK or spaCy
+    # Return the assigned category for the article
+    pass
+
+def update_database_with_category(article_data):
+    engine = create_engine('postgresql://your_username:your_password@localhost/your_database_name')
+    Base.metadata.create_all(engine)
+    
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    article = NewsArticle(**article_data)
+    try:
+        session.add(article)
+        session.commit()
+    except IntegrityError:
+        session.rollback()  # Ignore duplicates
+
+    session.close()
+
+
+3. Logging and Error Handling:
+Script Update:
+python
+
+import logging
+import requests
+
+# Configure logging
+logging.basicConfig(filename='news_collection.log', level=logging.INFO)
+
+def parse_rss_feed(feed_url):
+    try:
+        parsed_feed = feedparser.parse(feed_url)
+        articles = []
+
+        for entry in parsed_feed.entries:
+            # ... (same as before)
+
+        return articles
+
+    except Exception as e:
+        logging.error(f"Error parsing feed {feed_url}: {str(e)}")
+        return []
+
+# Handle network connectivity issues
+def check_internet_connection():
+    try:
+        requests.get('http://www.google.com', timeout=1)
+        return True
+    except requests.ConnectionError:
+        logging.error("No internet connection.")
+        return False
+
+# Check internet connection before parsing feeds
+if check_internet_connection():
+    for feed_url in rss_feeds:
+        articles = parse_rss_feed(feed_url)
+        
+        # Send articles to the Celery queue for further processing
+        for article_data in articles:
+            process_news_task.delay(article_data)
+Documentation:
+Create a README file that explains the overall design, how to set up and run the application, dependencies, and any other relevant details. Additionally, document the classification model and its accuracy, if applicable.
+
+Deliverables:
+Provide the Python code, documentation, and resulting data as requested.
+
+Make sure to adapt the code according to your specific NLTK/spaCy usage and your data processing module.
+
+Make sure to adapt the code according to your specific NLTK/spaCy usage and your data processing module.
+
+
+
+
+
+1. Celery Worker:
+tasks.py Update:
+python
+Copy code
+from celery import Celery
+from nltk.classify import NaiveBayesClassifier
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from sqlalchemy import create_engine, Column, String, DateTime, Integer
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import IntegrityError
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+Base = declarative_base()
+
+class NewsArticle(Base):
+    __tablename__ = 'news_articles'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String, unique=True, nullable=False)
+    content = Column(String, nullable=False)
+    pub_date = Column(DateTime, nullable=False)
+    source_url = Column(String, nullable=False)
+    category = Column(String)  # Add a column for category
+
+# Load NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
+
+@ app.task
+def process_news_task(article_data):
+    try:
+        # Additional processing logic, e.g., category classification
+        category = classify_article(article_data['content'])
+        article_data['category'] = category
+
+        # Update the database with the assigned category
+        update_database_with_category(article_data)
+
+    except Exception as e:
+        logging.error(f"Error processing article {article_data['title']}: {str(e)}")
+
+def classify_article(content):
+    words = word_tokenize(content)
+    words = [lemmatizer.lemmatize(word.lower()) for word in words if word.isalnum() and word.lower() not in stop_words]
+
+    # Example: Simple positive/negative classification based on keyword presence
+    positive_keywords = ['uplifting', 'positive', 'joyful']
+    negative_keywords = ['terrorism', 'protest', 'disaster', 'riot']
+
+    positive_score = sum(1 for word in words if word in positive_keywords)
+    negative_score = sum(1 for word in words if word in negative_keywords)
+
+    # Assign category based on scores
+    if positive_score > negative_score:
+        return 'Positive/Uplifting'
+    else:
+        return 'Terrorism/Protest/Negative'
+
+def update_database_with_category(article_data):
+    engine = create_engine('postgresql://your_username:your_password@localhost/your_database_name')
+    Base.metadata.create_all(engine)
+    
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    article = NewsArticle(**article_data)
+    try:
+        session.add(article)
+        session.commit()
+    except IntegrityError:
+        session.rollback()  # Ignore duplicates
+
+    session.close()
+Adjust the classification logic according to your specific needs and the types of articles you're dealing with. This example is simplistic and based on keyword presence; you might need a more sophisticated approach depending on your use case.
+
+Create a README file that explains the overall design, how to set up and run the application, dependencies, and any other relevant details
+
+README.md:
+markdown
+Copy code
+# News Collection and Classification App
+
+This application collects news articles from various RSS feeds, stores them in a database, and categorizes them into predefined categories using Celery, NLTK, and a relational database (PostgreSQL). The provided script reads RSS feeds, extracts relevant information, and sends articles to a Celery queue for further processing.
+
+## Setup and Usage
+
+### Prerequisites
+- Python 3.6 or higher
+- PostgreSQL database server
+- Celery and Redis server (for task queue)
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/your-username/news-collection-app.git
+cd news-collection-app
+Install dependencies:
+
+pip install -r requirements.txt
+Configuration
+Set up your PostgreSQL database and update the database connection string in tasks.py and models.py.
+
+Configure Celery by updating the celery_config.py file with your broker URL and result backend.
+
+Running the Application
+Start the Celery worker:
+
+celery -A tasks worker --loglevel=info
+Run the main script to collect and process news articles:
+bash
+Copy code
+python main_script.py
+Classification Model
+The classification model used in this application is a simple keyword-based approach using NLTK. The classify_article function in tasks.py assigns categories based on the presence of specific keywords. Adjust this function according to your specific classification needs.
+
+Logging and Error Handling
+The application includes logging to track events and potential errors. Log files are stored in the project directory with the filename news_collection.log.
+
+
+### requirements.txt:
+
+feedparser==6.0.2
+requests==2.26.0
+sqlalchemy==1.4.23
+celery==5.2.3
+nltk==3.6.5
+
+vbnet
+
+
+Please note that you might need to adjust the versions based on the latest releases and compatibility with your system. 
+Additionally, if you use a different classification model, make sure to include the corresponding library and version in the requirements.txt file.

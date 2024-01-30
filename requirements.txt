@@ -1,0 +1,18 @@
+# News Collection and Classification App
+
+This application collects news articles from various RSS feeds, stores them in a database, and categorizes them into predefined categories using Celery, NLTK, and a relational database (PostgreSQL). The provided script reads RSS feeds, extracts relevant information, and sends articles to a Celery queue for further processing.
+
+## Setup and Usage
+
+### Prerequisites
+- Python 3.6 or higher
+- PostgreSQL database server
+- Celery and Redis server (for task queue)
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/your-username/news-collection-app.git
+cd news-collection-app
