@@ -31,3 +31,44 @@ from tasks import process_news_task
 
 for article_data in all_articles:
     process_news_task.delay(article_data)
+
+from celery import Celery
+from your_data_processing_module import process_news_article
+from nltk.classify import NaiveBayesClassifier  # Assuming NLTK is used for classification
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+@ app.task
+def process_news_task(article_data):
+    # Additional processing logic, e.g., category classification
+    category = classify_article(article_data['content'])
+    article_data['category'] = category
+
+    # Update the database with the assigned category
+    update_database_with_category(article_data)
+
+def classify_article(content):
+    # Implement your classification logic using NLTK or spaCy
+    # Return the assigned category for the article
+    pass
+
+def update_database_with_category(article_data):
+    # Implement logic to update the database with the assigned category for the article
+    pass
+
+def update_database_with_category(article_data):
+    engine = create_engine('postgresql://your_username:your_password@localhost/your_database_name')
+    Base.metadata.create_all(engine)
+    
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    article = NewsArticle(**article_data)
+    try:
+        session.add(article)
+        session.commit()
+    except IntegrityError:
+        session.rollback()  # Ignore duplicates
+
+    session.close()
