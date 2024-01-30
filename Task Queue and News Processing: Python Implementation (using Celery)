@@ -72,3 +72,81 @@ def update_database_with_category(article_data):
         session.rollback()  # Ignore duplicates
 
     session.close()
+
+from celery import Celery
+from nltk.classify import NaiveBayesClassifier
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from sqlalchemy import create_engine, Column, String, DateTime, Integer
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.exc import IntegrityError
+
+app = Celery('tasks')
+app.config_from_object('celery_config')
+
+Base = declarative_base()
+
+class NewsArticle(Base):
+    __tablename__ = 'news_articles'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String, unique=True, nullable=False)
+    content = Column(String, nullable=False)
+    pub_date = Column(DateTime, nullable=False)
+    source_url = Column(String, nullable=False)
+    category = Column(String)  # Add a column for category
+
+# Load NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
+
+@ app.task
+def process_news_task(article_data):
+    try:
+        # Additional processing logic, e.g., category classification
+        category = classify_article(article_data['content'])
+        article_data['category'] = category
+
+        # Update the database with the assigned category
+        update_database_with_category(article_data)
+
+    except Exception as e:
+        logging.error(f"Error processing article {article_data['title']}: {str(e)}")
+
+def classify_article(content):
+    words = word_tokenize(content)
+    words = [lemmatizer.lemmatize(word.lower()) for word in words if word.isalnum() and word.lower() not in stop_words]
+
+    # Example: Simple positive/negative classification based on keyword presence
+    positive_keywords = ['uplifting', 'positive', 'joyful']
+    negative_keywords = ['terrorism', 'protest', 'disaster', 'riot']
+
+    positive_score = sum(1 for word in words if word in positive_keywords)
+    negative_score = sum(1 for word in words if word in negative_keywords)
+
+    # Assign category based on scores
+    if positive_score > negative_score:
+        return 'Positive/Uplifting'
+    else:
+        return 'Terrorism/Protest/Negative'
+
+def update_database_with_category(article_data):
+    engine = create_engine('postgresql://your_username:your_password@localhost/your_database_name')
+    Base.metadata.create_all(engine)
+    
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    article = NewsArticle(**article_data)
+    try:
+        session.add(article)
+        session.commit()
+    except IntegrityError:
+        session.rollback()  # Ignore duplicates
+
+    session.close()
